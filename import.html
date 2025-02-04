@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Import Student Data</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin: 50px;
+            background-color: #f4f4f4;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);
+            display: inline-block;
+            width: 80%;
+        }
+        h1 {
+            color: #333;
+        }
+        .section {
+            margin-top: 20px;
+            padding: 15px;
+            background: #e9ecef;
+            border-radius: 5px;
+        }
+        input[type="file"] {
+            margin: 10px 0;
+        }
+        .progress-bar {
+            width: 100%;
+            background: #ddd;
+            border-radius: 5px;
+            margin-top: 10px;
+        }
+        .progress-bar div {
+            height: 20px;
+            width: 0%;
+            background: #28a745;
+            border-radius: 5px;
+            text-align: center;
+            color: white;
+            font-size: 14px;
+        }
+        .hidden {
+            display: none;
+        }
+        button {
+            margin-top: 20px;
+            padding: 10px 20px;
+            font-size: 16px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>Import Student Data</h1>
+        <p>Please upload student data files in <strong>.txt</strong> format for each class.</p>
+        <div id="sections"></div>
+        <button id="continueButton" class="hidden" onclick="goToHome()">Continue</button>
+    </div>
+
+    <script>
+        // Get selected grade from local storage
+        const selectedGrade = localStorage.getItem("selectedGrade");
+        const sectionsContainer = document.getElementById("sections");
+
+        // Define classes based on selection
+        const gradeMapping = {
+            "Grade 9 only": ["Grade 9 A", "Grade 9 B", "Grade 9 C", "Grade 9 D"],
+            "Grade 10 only": ["Grade 10 A", "Grade 10 B", "Grade 10 C", "Grade 10 D", "Grade 10 E"],
+            "Grade 11 only": ["Grade 11"],
+            "Grade 9 and 10": ["Grade 9 A", "Grade 9 B", "Grade 9 C", "Grade 9 D", "Grade 10 A", "Grade 10 B", "Grade 10 C", "Grade 10 D", "Grade 10 E"],
+            "Grade 10 and 11": ["Grade 10 A", "Grade 10 B", "Grade 10 C", "Grade 10 D", "Grade 10 E", "Grade 11"],
+            "Grade 9 and 11": ["Grade 9 A", "Grade 9 B", "Grade 9 C", "Grade 9 D", "Grade 11"]
+        };
+
+        // Generate sections based on selection
+        if (selectedGrade && gradeMapping[selectedGrade]) {
+            gradeMapping[selectedGrade].forEach(className => {
+                const section = document.createElement("div");
+                section.classList.add("section");
+
+                section.innerHTML = `
+                    <h2>${className}</h2>
+                    <input type="file" id="${className.replace(/\s+/g, '')}" accept=".txt" onchange="uploadFile(event, '${className}')">
+                    <div class="progress-bar"><div id="progress-${className.replace(/\s+/g, '')}">0%</div></div>
+                `;
+
+                sectionsContainer.appendChild(section);
+            });
+        }
+
+        let uploadedFiles = 0;
+        const totalClasses = gradeMapping[selectedGrade] ? gradeMapping[selectedGrade].length : 0;
+
+        function uploadFile(event, className) {
+            const file = event.target.files[0];
+            if (file) {
+                const progressBar = document.getElementById(`progress-${className.replace(/\s+/g, '')}`);
+                let progress = 0;
+                const interval = setInterval(() => {
+                    if (progress >= 100) {
+                        clearInterval(interval);
+                        // Read file and store in localStorage
+                        const reader = new FileReader();
+                        reader.onload = function(e) {
+                            localStorage.setItem(className, e.target.result);
+                            uploadedFiles++;
+                            if (uploadedFiles === totalClasses) {
+                                document.getElementById("continueButton").classList.remove("hidden");
+                            }
+                        };
+                        reader.readAsText(file);
+                    } else {
+                        progress += 10;
+                        progressBar.style.width = progress + "%";
+                        progressBar.innerText = progress + "%";
+                    }
+                }, 300);
+            }
+        }
+
+        function goToHome() {
+            window.location.href = "home.html";
+        }
+    </script>
+
+</body>
+
+</html>

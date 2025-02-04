@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student QR Scanner</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin: 50px;
+            background-color: #f4f4f4;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);
+            display: inline-block;
+            width: 80%;
+        }
+        h1 { color: #333; }
+        .table-container {
+            margin-top: 20px;
+            overflow-x: auto;
+        }
+        table { width: 100%; border-collapse: collapse; }
+        table, th, td { border: 1px solid #ddd; }
+        th, td { padding: 12px; text-align: left; }
+        button {
+            margin-top: 20px;
+            padding: 10px 20px;
+            font-size: 16px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        button:hover { background-color: #0056b3; }
+        .hidden { display: none; }
+        .scanned { background-color: #c3e6cb; }
+        .qr-scanner {
+            margin-top: 20px;
+            background-color: #f4f4f4;
+            padding: 10px;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Student Attendance Scanner</h1>
+    <a href="import.html">Import</a>
+    <input type="text" id="gradeInput" placeholder="Enter Grade (e.g. Grade 9 A)">
+    <button id="loadStudentsButton">Load Students</button>
+
+    <div id="studentData" class="hidden">
+        <h2>Student List for <span id="classInfo"></span></h2>
+        <div class="table-container">
+            <table id="studentTable">
+                <thead>
+                    <tr><th>Student Name</th><th>Student ID</th></tr>
+                </thead>
+                <tbody id="studentTableBody"></tbody>
+            </table>
+        </div>
+        <button id="startScanButton" class="hidden">Start Scanning</button>
+    </div>
+
+    <div id="qrScanner" class="hidden">
+        <h3>QR Scanner</h3>
+        <video id="qrVideo" width="100%" height="300px" autoplay></video>
+        <button id="finishScanButton">Finish</button>
+        <button id="nextClassButton" class="hidden">Next Class</button>
+    </div>
+
+    <div id="absentList" class="hidden">
+        <h2>Absent Students</h2>
+        <div class="table-container">
+            <table id="absentTable">
+                <thead><tr><th>Student Name</th><th>Student ID</th></tr></thead>
+                <tbody id="absentTableBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/html5-qrcode/minified/html5-qrcode.min.js"></script>
+    <script>
+        const studentsData = {};
+        const scannedStudents = new Set();
+        const absentStudents = [];
+        let html5QrCode;
+
+        const gradeInput = document.getElementById('gradeInput');
+        const loadStudentsButton = document.getElementById('loadStudentsButton');
+        const studentDataContainer = document.getElementById('studentData');
+        const studentTableBody = document.getElementById('studentTableBody');
+        const classInfo = document.getElementById('classInfo');
+        const startScanButton = document.getElementById('startScanButton');
+        const qrScanner = document.getElementById('qrScanner');
+        const qrVideo = document.getElementById('qrVideo');
+        const finishScanButton = document.getElementById('finishScanButton');
+        const absentList = document.getElementById('absentList');
+        const absentTableBody = document.getElementById('absentTableBody');
+        const nextClassButton = document.getElementById('nextClassButton');
+
+        loadStudentsButton.addEventListener('click', loadStudents);
+        startScanButton.addEventListener('click', startQRCodeScanner);
+        finishScanButton.addEventListener('click', finishScanning);
+        nextClassButton.addEventListener('click', resetForNextClass);
+
+        function loadStudents() {
+            const gradeClass = gradeInput.value.trim();
+            if (!gradeClass) {
+                alert('Please enter a grade and class.');
+                return;
+            }
+
+            const data = localStorage.getItem(gradeClass);
+            if (data) {
+                const students = data.split('\n').map(student => student.split(','));
+                studentsData[gradeClass] = students;
+                displayStudentList(gradeClass, students);
+                classInfo.textContent = gradeClass;
+                studentDataContainer.classList.remove('hidden');
+                startScanButton.classList.remove('hidden');
+            } else {
+                alert('No student data found for this class.');
+            }
+        }
+
+        function displayStudentList(gradeClass, students) {
+            studentTableBody.innerHTML = '';
+            students.forEach(student => {
+                const row = document.createElement('tr');
+                row.setAttribute('data-id', student[1]);
+                row.innerHTML = `<td>${student[0]}</td><td>${student[1]}</td>`;
+                studentTableBody.appendChild(row);
+            });
+        }
+
+        function startQRCodeScanner() {
+            navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
+                .then(() => {
+                    qrScanner.classList.remove('hidden');
+                    startScanButton.classList.add('hidden');
+
+                    html5QrCode = new Html5Qrcode("qrVideo");
+                    html5QrCode.start(
+                        { facingMode: "environment" },
+                        { fps: 10, qrbox: 250 },
+                        qrCodeMessage => {
+                            if (!scannedStudents.has(qrCodeMessage)) {
+                                scannedStudents.add(qrCodeMessage);
+                                markStudentAsScanned(qrCodeMessage);
+                            }
+                        }
+                    ).catch(err => console.log("QR Scanner error:", err));
+                })
+                .catch(() => alert("Camera permission is required!"));
+        }
+
+        function markStudentAsScanned(qrCodeMessage) {
+            const studentRow = document.querySelector(`tr[data-id="${qrCodeMessage}"]`);
+            if (studentRow) {
+                studentRow.classList.add('scanned');
+            }
+        }
+
+        function finishScanning() {
+            qrScanner.classList.add('hidden');
+
+            absentStudents.length = 0;
+            Object.values(studentsData).forEach(students => {
+                students.forEach(student => {
+                    if (!scannedStudents.has(student[1])) absentStudents.push(student);
+                });
+            });
+
+            displayAbsentStudents();
+            nextClassButton.classList.remove('hidden');
+        }
+
+        function displayAbsentStudents() {
+            absentTableBody.innerHTML = '';
+            absentStudents.forEach(student => {
+                absentTableBody.innerHTML += `<tr><td>${student[0]}</td><td>${student[1]}</td></tr>`;
+            });
+            absentList.classList.remove('hidden');
+        }
+
+        function resetForNextClass() {
+            location.reload();
+        }
+    </script>
+
+</body>
+</html>
